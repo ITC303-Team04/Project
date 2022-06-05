@@ -5,12 +5,14 @@ import tempfile
 from moto import mock_s3
 from unittest.mock import mock_open, patch
 from _pytest.monkeypatch import MonkeyPatch
+from parameterized import parameterized
 from image_preprocessor_lambda import (
     add_file_to_bucket,
     get_file_from_bucket,
     remove_file_from_bucket,
     process_image,
     lambda_handler,
+    get_bucket_names,
 )
 
 DEST_BUCKET_NAME = "DEST_BUCKET_NAME"
@@ -63,7 +65,7 @@ class TestPreProcessingLambda(unittest.TestCase):
         response = self.s3_client.get_object(Bucket=BUCKET_NAME, Key=TEST_KEY)
         self.assertTrue(response["ResponseMetadata"]["HTTPStatusCode"] == 200)
 
-        # raises file from bucker
+        # removes file from bucket
         remove_file_from_bucket(self.s3_client, BUCKET_NAME, TEST_KEY)
 
         # raises exception if accessing a key that does not exist (removed)
@@ -75,11 +77,8 @@ class TestPreProcessingLambda(unittest.TestCase):
         )
 
     def test_add_file_to_bucket(self):
-
         img_key = "test_key"
-
         temp_file = tempfile.NamedTemporaryFile(dir="/tmp")
-        print(temp_file)
 
         # raises exception if accessing a key that does not exist (doesn't exist yet)
         self.assertRaises(
@@ -121,3 +120,21 @@ class TestPreProcessingLambda(unittest.TestCase):
     def test_process_image(self):
         process_image("")
         self.assertTrue(True)
+
+    @parameterized.expand(
+        [
+            (
+                "default_bucket_names",
+                [],
+                ["sagemaker-training-csu303", "preprocessed-images-csu303"],
+            ),
+            (
+                "default_bucket_names",
+                ["name_1", "name_2"],
+                ["name_1", "name_2"],
+            ),
+        ]
+    )
+    def test_get_bucket_names(self, _, names, expected_names):
+        names = get_bucket_names() if not names else get_bucket_names(*names)
+        self.assertCountEqual(names, expected_names)
