@@ -24,8 +24,11 @@ TEST_KEY = "TEST_KEY"
 class TestPreProcessingLambda(unittest.TestCase):
     def setUp(self):
         self.s3_client = boto3.client("s3")
-        self.s3_client.create_bucket(Bucket=BUCKET_NAME)
-        self.s3_client.create_bucket(Bucket=DEST_BUCKET_NAME)
+        bucket_config = {
+            "CreateBucketConfiguration": {"LocationConstraint": "ap-southeast-2"}
+        }
+        self.s3_client.create_bucket(**bucket_config, Bucket=BUCKET_NAME)
+        self.s3_client.create_bucket(**bucket_config, Bucket=DEST_BUCKET_NAME)
 
         self.test_data = b"col_1,col_2\n1,2\n3,4\n"
 
