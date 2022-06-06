@@ -70,6 +70,3 @@ def lambda_handler(event, context):
 
     # Delete the original file
     remove_file_from_bucket(s3_client, curr_bucket, key)
-
-    
-
