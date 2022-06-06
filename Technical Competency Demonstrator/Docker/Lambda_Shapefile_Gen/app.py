@@ -2,10 +2,8 @@ import boto3
 import uuid
 import fiona
 import rasterio
-from rasterio.features import shapes
 
-import boto3
-import uuid
+from rasterio.features import shapes
 
 
 def get_bucket_names(
@@ -19,27 +17,27 @@ def get_file_from_bucket(client, source_bucket, key, img_file):
 
 
 def create_shapefile(key, output_path, file_path, img_file):
-    schema = {'properties': [('raster_val', 'int')], 'geometry': 'Polygon'}
+    schema = {"properties": [("raster_val", "int")], "geometry": "Polygon"}
 
     with rasterio.Env():
         with rasterio.open(file_path) as src:
             image = src.read(1)
             results = (
-                {'properties': {'raster_val': v}, 'geometry': s}
-                for (s, v)
-                in shapes(image, transform=src.transform) if v > 1
+                {"properties": {"raster_val": v}, "geometry": s}
+                for (s, v) in shapes(image, transform=src.transform)
+                if v > 1
             )
 
             with fiona.open(
                 output_path,
-                'w',
-                'ESRI Shapefile',
+                "w",
+                "ESRI Shapefile",
                 crs=src.crs,  # src.crs is currently None, this needs to figured out.
-                schema=schema
+                schema=schema,
             ) as dst:
                 dst.writerecords(results)
 
-    print(f'Shapefile(s) written to {output_path}')
+    print(f"Shapefile(s) written to {output_path}")
 
 
 def add_file_to_bucket(client, img_path, dest_bucket_name, upload_key):
@@ -58,8 +56,8 @@ def lambda_handler(event, context):
 
     object_key = f"{key}"
     upload_key = f"pp-{object_key}.shp"
-    img_download_path = f"/tmp/{object_key}" #tiff
-    img_upload_path = f"/tmp/{key}.shp" #shape
+    img_download_path = f"/tmp/{object_key}"  # tiff
+    img_upload_path = f"/tmp/{key}.shp"  # shape
 
     curr_bucket, next_bucket = get_bucket_names()
 
