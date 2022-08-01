@@ -12,7 +12,7 @@ This repo is to run the pre/post processing (Tiling / Reconstruction) of JP2 fil
 ## How to run
   - In terminal navigate to this directory.
   - Build the image from the Dockerfile by running `docker build -t processing .` This may take a few mins
-  - Once built, run the container from the image by `docker run --rm -it processing`. You should see the prompt change to something similar to `root@e5487e324206:/# `
+  - Once built, run the container from the image by `docker run -it --rm -v %cd%:/app processing` On windows and `docker run -it --rm -v $(pwd):/app processing` for Unix. You should see the prompt change to something similar to `root@e5487e324206:/# `
   - Once the container is running, open VSCode and in the bottom right click `Open a Remote Window` and select `Attach to Running Container...`
   - There should be a container with a random name followed by processing: `/<random_name> processing`, select that container
   - VScode will restart inside the container, if prompted to install kernel click yes and select `Install in Container`
