@@ -10,12 +10,7 @@ This repo is to run the pre/post processing (Tiling / Reconstruction) of JP2 fil
     - [Remote Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 
 ## How to run
-  - In terminal navigate to this directory.
-  - Build the image from the Dockerfile by running `docker build -t processing .` This may take a few mins
-  - Once built, run the container from the image by `docker run -it --rm -v %cd%:/app processing` On windows and `docker run -it --rm -v $(pwd):/app processing` for Unix. You should see the prompt change to something similar to `root@e5487e324206:/# `
-  - Once the container is running, open VSCode and in the bottom right click `Open a Remote Window` and select `Attach to Running Container...`
-  - There should be a container with a random name followed by processing: `/<random_name> processing`, select that container
-  - VScode will restart inside the container, if prompted to install kernel click yes and select `Install in Container`
-  - Open the `to_tiles.ipynb` and in the top right click the kernel button and ensure the kernel is the Suggest Kernel
-
-  After this the project should be ready to run, at the top select |> Run All 
+  - In the dockfiler there are 2 separate sections 1 for gdal and 1 for opencv, uncomment either one based on the jupyter files you will be running (build & run commands are commented out for copy & paste purposes)
+  - After building and running, attach vscode to container
+  - Place image in the input folder for processing
+  - Run the desired notebook file

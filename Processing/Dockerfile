@@ -1,15 +1,22 @@
-FROM osgeo/gdal:latest
+# ============== CONDA/GDAL ================= 
+FROM continuumio/anaconda3:latest
+RUN conda install -y gdal
+RUN conda install -c anaconda ipykernel -y
 
-RUN apt update -y
-RUN apt upgrade -y
-RUN apt install python3-pip -y
-RUN pip install ipykernel
+# docker build -t gdal .
+# docker run --rm -it -v ${PWD}:/app gdal
+# ==========================================
 
-# docker build -t processing .
 
-# Windows Run cmd
-# docker run -it --rm -v %cd%:/app processing 
 
-# Unix Run cmd
-# docker run -it --rm -v $(pwd):/app processing 
+# # ============== CONDA/OPENCV =================
+# FROM continuumio/anaconda3:latest
+# RUN apt update && apt upgrade -y
+# RUN conda install -c anaconda ipykernel -y
+# RUN conda install scikit-image matplotlib -y
+# RUN apt-get update && apt-get install -y python3-opencv
+# RUN pip install opencv-python
 
+# # docker build -t opencv .
+# # docker run --rm -it -v ${PWD}:/app opencv
+# # =============================================
