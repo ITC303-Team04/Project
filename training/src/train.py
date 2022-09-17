@@ -10,6 +10,7 @@ import pandas as pd
 from tensorflow.keras.layers import Input, Conv2D, Activation, BatchNormalization, Conv2DTranspose, Concatenate, MaxPooling2D
 from tensorflow.keras.models import Model, load_model, save_model
 from tensorflow.keras import backend as K
+
     
 # //==================== create df ====================//
 def createDataFrame(train_dir):
@@ -148,19 +149,18 @@ def unet(learning_rate, input_shape, num_classes):
   return model
 
 # //==================== AWS functions ====================//
-def log(msg, output=''):
-    return f'{"="*20} [{msg.upper}] {"="*20} \n{output}'
 
 def parse_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--epochs', type=int, default=1)
+    parser.add_argument('--epochs', type=int, default=2)
     parser.add_argument('--learning-rate', type=float, default=0.0001)
     parser.add_argument('--img-shape', type=tuple, default=(512, 512, 3))
     parser.add_argument('--batch-size', type=int, default=4)
     parser.add_argument('--num-classes', type=int, default=1)
     parser.add_argument('--retrain-model', type=bool, default=False)
-    parser.add_argument('--bucket', type=str)
+    parser.add_argument('--train-bucket', type=str)
+    parser.add_argument('--infer-bucket', type=str)
 
     parser.add_argument("--model-dir", type=str, default=os.environ["SM_MODEL_DIR"])
     parser.add_argument("--train", type=str, default=os.environ["SM_CHANNEL_TRAIN"])
@@ -168,53 +168,48 @@ def parse_args():
     args, _ = parser.parse_known_args()
     return args
 
-def retrain_existing_model(file, bucket):
-    log('Not yet implemented')
-    exit()
-#     path = f'opt/ml/retrain/{file}'
-#     download_from_s3(file, bucket, path)
+def extract_model(file_name, path):
+    tar = tarfile.open(file_name)
+    tar.extractall(path)
+    tar.close()
     
-#     with tarfile.open(path) as model_tar:
-#         for entry in model_tar:
-#             #
-            
-#     model = load_model(model_path, compile=True, custom_objects={"dice_coef_loss": dice_coef_loss, "dice_coef": dice_coef}) 
-#     return model
+
+def retrain_existing_model(file_name, bucket):
+    path = f'opt/ml/retrain'
+    file_path = f'{path}/{file_name}'
+    download_from_s3(file_name, bucket, file_path)
+    extract_model(file_name, path)
+    
+    model = load_model(file_path, compile=True, custom_objects={"dice_coef_loss": dice_coef_loss, "dice_coef": dice_coef}) 
+    return model
 
 def compress_model():
     with tarfile.open(os.path.join(args.model_dir, 'model.tar.gz'), "w:gz") as tar:
         tar.add(os.path.join(args.model_dir, 'model.h5'), arcname='model.h5')
         tar.add(os.path.join(args.model_dir, 'model.json'), arcname='model.json')
-    return tar
 
 def upload_to_s3(path, file, bucket_name):
-    s3 = boto3.Session().resource('s3')
-    bucket = s3.Bucket(bucket_name[5:])
-    obj = bucket.Object(os.path.join('model', file))
-
+    s3 = boto3.client("s3")
     try:
-        response = obj.upload_file(os.path.join(path, file))
-        
+        s3.upload_file(f"{path}/{file}", bucket_name[5:], file)
     except Exception as e:
-        log('s3 upload failed', e)
+        print('S3 upload failed', e)
         
 def download_from_s3(file_name, bucket_name, path):
-    log('Not yet implemented')
-    exit()
-#     s3 = boto3.Session().resource('s3')
-#     bucket = s3.Bucket(bucket_name[5:])
-#     key = f'retrain/{file_name}'
-#     for file in bucket.objects.all():
-#         if file.key == key:
-#             bucket.download_file(file.key, file.key)
+    s3 = boto3.client("s3")
+    try:
+        s3.download_file(bucket_name[5:], f'retrain/{file_name}', file_name)
+    except Exception as e:
+        print('S3 upload failed', e)
+    
 
 
 if __name__ =='__main__':
-
     args = parse_args()
+    
 
     if args.retrain_model:
-        model = retrain_existing_model('model.tar.gz', args.bucket)
+        model = retrain_existing_model('model.tar.gz', args.train_bucket)
     else:
         model = unet(
             learning_rate=args.learning_rate,
@@ -236,10 +231,11 @@ if __name__ =='__main__':
     train_dataset = create_dataset(df, args.batch_size, args.img_shape)
 
     history = model.fit(train_dataset, callbacks=callbacks, epochs=args.epochs)
+    
 
     model_json = model.to_json()
     with open(os.path.join(args.model_dir, 'model.json'), "w") as json_file:
         json_file.write(model_json)
     
-    compressed_model = compress_model()
-    upload_to_s3(args.model_dir, 'model.tar.gz', args.bucket)
+    compress_model()
+    upload_to_s3(args.model_dir, 'model.tar.gz', args.infer_bucket)
