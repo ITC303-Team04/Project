@@ -11,6 +11,14 @@ from tensorflow.keras.layers import Input, Conv2D, Activation, BatchNormalizatio
 from tensorflow.keras.models import Model, load_model, save_model
 from tensorflow.keras import backend as K
 
+from training_utils import (
+    remove_training_artifacts,
+    get_existing_model,
+    upload_to_s3,
+    write_model_tar,
+    write_model_json
+)
+
     
 # //==================== create df ====================//
 def createDataFrame(train_dir):
@@ -148,7 +156,7 @@ def unet(learning_rate, input_shape, num_classes):
   model.compile(optimizer=adam, loss=dice_coef_loss, metrics=[dice_coef])
   return model
 
-# //==================== AWS functions ====================//
+# //==================== args ====================//
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -161,55 +169,33 @@ def parse_args():
     parser.add_argument('--retrain-model', type=bool, default=False)
     parser.add_argument('--train-bucket', type=str)
     parser.add_argument('--infer-bucket', type=str)
+    parser.add_argument('--job-name', type=str)
 
     parser.add_argument("--model-dir", type=str, default=os.environ["SM_MODEL_DIR"])
     parser.add_argument("--train", type=str, default=os.environ["SM_CHANNEL_TRAIN"])
+    parser.add_argument("--source-module", type=str, default=os.environ["SM_MODULE_DIR"])
 
     args, _ = parser.parse_known_args()
     return args
 
-def extract_model(file_name, path):
-    tar = tarfile.open(file_name)
-    tar.extractall(path)
-    tar.close()
-    
 
-def retrain_existing_model(file_name, bucket):
-    path = f'opt/ml/retrain'
-    file_path = f'{path}/{file_name}'
-    download_from_s3(file_name, bucket, file_path)
-    extract_model(file_name, path)
-    
-    model = load_model(file_path, compile=True, custom_objects={"dice_coef_loss": dice_coef_loss, "dice_coef": dice_coef}) 
-    return model
-
-def compress_model():
-    with tarfile.open(os.path.join(args.model_dir, 'model.tar.gz'), "w:gz") as tar:
-        tar.add(os.path.join(args.model_dir, 'model.h5'), arcname='model.h5')
-        tar.add(os.path.join(args.model_dir, 'model.json'), arcname='model.json')
-
-def upload_to_s3(path, file, bucket_name):
-    s3 = boto3.client("s3")
-    try:
-        s3.upload_file(f"{path}/{file}", bucket_name[5:], file)
-    except Exception as e:
-        print('S3 upload failed', e)
-        
-def download_from_s3(file_name, bucket_name, path):
-    s3 = boto3.client("s3")
-    try:
-        s3.download_file(bucket_name[5:], f'retrain/{file_name}', file_name)
-    except Exception as e:
-        print('S3 upload failed', e)
-    
-
+# //==================== main ====================//
 
 if __name__ =='__main__':
+    
+    MODEL_NAME = 'model'
+    TAR_FILE = f'{MODEL_NAME}.tar.gz'
+    
     args = parse_args()
     
-
     if args.retrain_model:
-        model = retrain_existing_model('model.tar.gz', args.train_bucket)
+        retrain_model_path = '/opt/ml'
+        file_path = f'{retrain_model_path}/{MODEL_NAME}.h5'
+        get_existing_model(TAR_FILE, args.train_bucket, retrain_model_path)
+        
+        print(f"================================= {os.listdir(retrain_model_path)} =============================")
+        model = load_model(file_path, compile=True, custom_objects={"dice_coef_loss": dice_coef_loss, "dice_coef": dice_coef})
+
     else:
         model = unet(
             learning_rate=args.learning_rate,
@@ -219,7 +205,7 @@ if __name__ =='__main__':
     
     callbacks = [
         tf.keras.callbacks.ModelCheckpoint(
-            os.path.join(args.model_dir, 'model.h5'),
+            os.path.join(args.model_dir, f'{MODEL_NAME}.h5'),
             monitor="loss",
             save_best_only=True,
             save_weights_only=True,
@@ -232,10 +218,9 @@ if __name__ =='__main__':
 
     history = model.fit(train_dataset, callbacks=callbacks, epochs=args.epochs)
     
+    write_model_json(model, os.path.join(args.model_dir, TAR_FILE))
+    write_model_tar(args.model_dir, TAR_FILE)
 
-    model_json = model.to_json()
-    with open(os.path.join(args.model_dir, 'model.json'), "w") as json_file:
-        json_file.write(model_json)
+    upload_to_s3(args.infer_bucket, args.model_dir, TAR_FILE)
     
-    compress_model()
-    upload_to_s3(args.model_dir, 'model.tar.gz', args.infer_bucket)
+    remove_training_artifacts(args.train_bucket, args.source_module[26:])
