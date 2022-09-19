@@ -7,10 +7,13 @@ RUN apt install -y \
     python3-pip \
     python3-setuptools \
     ca-certificates \
+    libxext6 \
+    libsm6 \
     nginx \
     && rm -rf /var/lib/apt/lists/*
 
 run pip3 --no-cache-dir install numpy tensorflow flask gunicorn
+run apt update && apt install -y python3-opencv
 
 ENV PYTHONUNBUFFERED=TRUE
 ENV PYTHONDONTWRITEBYTECODE=TRUE

@@ -5,6 +5,7 @@ from __future__ import print_function
 
 import os
 from tensorflow import keras
+import cv2 as cv
 
 import flask
 import numpy as np
@@ -16,7 +17,7 @@ model_path = "/opt/ml/model"
 app = flask.Flask(__name__)
 
 def make_good_prediction(prediction):
-    prediciton = prediction[0][:, :, :]
+    prediction = prediction[0][:, :, :]
     prediction = np.repeat(prediction, 3, 2)
     return prediction
 
@@ -41,11 +42,13 @@ def transformation():
     model = keras.models.model_from_json(json_model)
     model.load_weights(os.path.join(model_path, "road_seg_weights.h5"))
 
+    print(flask.request)
+    data = flask.request.json
+    img = np.array(data["features"])
+    print(f"Image: {img}")
+    img_model = model(img)
+    print(f"Image Model: {img_model}")
+    prediction = make_good_prediction(model(img))
+    print(f"Prediction: {prediction}")
 
-    data = flask.request.data
-    tensor_data = np.frombuffer(data, dtype=np.float32)
-    prediction = make_good_prediction(model(tensor_data))
-    # predicted_data = model.predict(data)
-    print(prediction)
-
-    return flask.Response(response=prediction, status=200)
+    return flask.Response(response=prediction.tobytes(), status=200)

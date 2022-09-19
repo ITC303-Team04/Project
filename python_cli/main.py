@@ -1,8 +1,11 @@
 import boto3
 from time import strftime, gmtime
-import cv2 as cv
 from matplotlib import pyplot as plt
 import numpy as np
+import cv2 as cv
+from PIL import Image
+from json import dumps, loads
+from io import BytesIO
 
 
 def create_model(sage, timestamp, role):
@@ -25,7 +28,7 @@ def create_endpoint_config(sage, timestamp, model_name):
         EndpointConfigName=endpoint_config_name,
         ProductionVariants=[
             {
-                "InstanceType": "ml.t2.medium",
+                "InstanceType": "ml.t2.large",
                 "InitialInstanceCount": 1,
                 "ModelName": model_name,
                 "VariantName": "AllTraffic",
@@ -72,22 +75,32 @@ def main():
     model_name = create_model(sage, timestamp, role)
     endpoint_config_name = create_endpoint_config(sage, timestamp, model_name)
     endpoint_name = create_endpoint(sage, timestamp, endpoint_config_name)
-    wait_for_endpoint(sage, endpoint_name)
 
     img = plt.imread("./road.jpg")
     img = img / 255.0
     img = np.expand_dims(cv.resize(img, (512, 512)), 0)
     img = img.astype(np.float32)
-    img = img.tobytes()
-
-    response = runtime.invoke_endpoint(
-        EndpointName=endpoint_name, ContentType="image/jpeg", Body=img
-    )
-
-    print(response["Body"].read())
-    sage.delete_endpoint(EndpointName=endpoint_name)
-    sage.delete_endpoint_config(EndpointConfigName=endpoint_config_name)
-    sage.delete_model(ModelName=model_name)
+    data = {"features": img.tolist()}
+    try:
+        wait_for_endpoint(sage, endpoint_name)
+        response = runtime.invoke_endpoint(
+            EndpointName=endpoint_name, ContentType="application/json", Body=dumps(data)
+        )
+    # except: 
+    #     sage.delete_endpoint(EndpointName=endpoint_name)
+    #     sage.delete_endpoint_config(EndpointConfigName=endpoint_config_name)
+    #     sage.delete_model(ModelName=model_name)
+    finally:
+        sage.delete_endpoint(EndpointName=endpoint_name)
+        sage.delete_endpoint_config(EndpointConfigName=endpoint_config_name)
+        sage.delete_model(ModelName=model_name)
+    response = response["Body"].read()
+    print(response)
+    res = np.frombuffer(response)
+    # image = Image.open(BytesIO(response))
+    image = Image.fromarray((res * 255).astype(np.uint8))
+    # image = Image.fromarray((response["Body"].read() * 255).astype(np.uint8))
+    image.save("output.jpg")
 
 
 if __name__ == "__main__":
