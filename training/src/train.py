@@ -21,6 +21,7 @@ from training_utils import (
 
     
 # //==================== create df ====================//
+
 def createDataFrame(train_dir):
     sat_image = []
     mask_image = []
@@ -33,10 +34,13 @@ def createDataFrame(train_dir):
             elif(subdir[-3:] == 'lbl'):
                 mask_image.append(fp)
     
-    return pd.DataFrame({
+    df = pd.DataFrame({
         'Image' : sat_image,
         'Mask' : mask_image
     })
+        
+    print(f'=============[Dataframe successfull created]:', df)
+    return df
 
 # //==================== create dataset ====================//
 def modify_mask(mask):
@@ -64,6 +68,7 @@ def create_dataset(data, batch_size, img_shape):
                     num_parallel_calls = tf.data.experimental.AUTOTUNE).batch(batch_size)
 
     dataset = dataset.prefetch(buffer_size = tf.data.experimental.AUTOTUNE)
+    print(f'=============[Dataset created]:', dataset)
     return dataset
 
 # //==================== create model ====================//
@@ -192,9 +197,8 @@ if __name__ =='__main__':
         retrain_model_path = '/opt/ml'
         file_path = f'{retrain_model_path}/{MODEL_NAME}.h5'
         get_existing_model(TAR_FILE, args.train_bucket, retrain_model_path)
-        
-        print(f"================================= {os.listdir(retrain_model_path)} =============================")
         model = load_model(file_path, compile=True, custom_objects={"dice_coef_loss": dice_coef_loss, "dice_coef": dice_coef})
+        print(f'=============[Existing model loaded]:', file_path)
 
     else:
         model = unet(
@@ -202,25 +206,25 @@ if __name__ =='__main__':
             input_shape=args.img_shape,
             num_classes=args.num_classes,
         )
+        print(f'=============[Unet model created]:', model)
     
     callbacks = [
         tf.keras.callbacks.ModelCheckpoint(
             os.path.join(args.model_dir, f'{MODEL_NAME}.h5'),
             monitor="loss",
             save_best_only=True,
-            save_weights_only=True,
+            # save_weights_only=True, 
         ),
         tf.keras.callbacks.EarlyStopping(monitor='loss', mode='min', verbose=1, patience=30),
     ]
     
-    df = createDataFrame(args.train)   
+    df = createDataFrame(args.train)
+    
     train_dataset = create_dataset(df, args.batch_size, args.img_shape)
 
     history = model.fit(train_dataset, callbacks=callbacks, epochs=args.epochs)
     
-    write_model_json(model, os.path.join(args.model_dir, TAR_FILE))
+    write_model_json(model, os.path.join(args.model_dir, f'{MODEL_NAME}.json'))
     write_model_tar(args.model_dir, TAR_FILE)
-
     upload_to_s3(args.infer_bucket, args.model_dir, TAR_FILE)
-    
     remove_training_artifacts(args.train_bucket, args.source_module[26:])
