@@ -5,7 +5,9 @@ from __future__ import print_function
 
 import os
 from tensorflow import keras
-import cv2 as cv
+from PIL import Image
+import boto3
+import io
 
 import flask
 import numpy as np
@@ -49,6 +51,12 @@ def transformation():
     img_model = model(img)
     print(f"Image Model: {img_model}")
     prediction = make_good_prediction(model(img))
+
+    result = Image.fromarray((prediction * 255).astype(np.uint8))
+    buf = io.BytesIO()
+    result.save(buf, format="TIFF")
+    byte_image = buf.getvalue()
+    
     print(f"Prediction: {prediction}")
 
-    return flask.Response(response=prediction.tobytes(), status=200)
+    return flask.Response(response=byte_image, status=200)

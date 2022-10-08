@@ -12,7 +12,7 @@ RUN apt install -y \
     nginx \
     && rm -rf /var/lib/apt/lists/*
 
-run pip3 --no-cache-dir install numpy tensorflow flask gunicorn
+run pip3 --no-cache-dir install numpy tensorflow flask gunicorn pillow
 run apt update && apt install -y python3-opencv
 
 ENV PYTHONUNBUFFERED=TRUE
